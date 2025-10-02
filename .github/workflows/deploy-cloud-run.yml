@@ -34,7 +34,8 @@ jobs:
         run: echo "IMAGE=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/${{ vars.SERVICE_NAME }}:${GITHUB_SHA}" >> $GITHUB_OUTPUT
 
       - name: Build & push with Cloud Build
-        run: gcloud builds submit --tag ${{ steps.vars.outputs.IMAGE }} --timeout=1200
+        run: gcloud builds submit --tag ${{ steps.vars.outputs.IMAGE }} --timeout=1200 .
+
 
       - name: Deploy to Cloud Run
         run: |
