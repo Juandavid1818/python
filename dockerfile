@@ -13,7 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
   && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements primero para cachear mejor
 COPY requirements.txt /usr/src/app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir "uvicorn[standard]"
