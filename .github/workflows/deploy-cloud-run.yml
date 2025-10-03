@@ -1,12 +1,12 @@
-name: Deploy to Cloud Run
+name: Deploy Backend to Cloud Run
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy-backend:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,23 +31,29 @@ jobs:
 
       - name: Define image name
         id: vars
-        run: echo "IMAGE=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/${{ vars.SERVICE_NAME }}:${GITHUB_SHA}" >> $GITHUB_OUTPUT
+        run: echo "IMAGE=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.AR_REPO_BACK || vars.AR_REPO }}/backend:${GITHUB_SHA}" >> $GITHUB_OUTPUT
 
       - name: Build & push with Cloud Build
+        working-directory: backend
         run: gcloud builds submit --tag ${{ steps.vars.outputs.IMAGE }} --timeout=1200 .
-
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy ${{ vars.SERVICE_NAME }} \
+          gcloud run deploy ${{ vars.BACKEND_SERVICE_NAME || 'backend' }} \
             --image ${{ steps.vars.outputs.IMAGE }} \
             --region ${{ vars.GCP_REGION }} \
             --platform managed \
             --allow-unauthenticated \
             --port 8080 \
-            --concurrency ${{ vars.CONCURRENCY || 80 }} \
-            --max-instances ${{ vars.MAX_INSTANCES || 1 }} \
-            --min-instances ${{ vars.MIN_INSTANCES || 0 }}
+            --cpu ${{ vars.BACK_CPU || '1' }} \
+            --memory ${{ vars.BACK_MEMORY || '512Mi' }} \
+            --timeout ${{ vars.BACK_TIMEOUT || '60' }} \
+            --concurrency ${{ vars.BACK_CONCURRENCY || '80' }} \
+            --max-instances ${{ vars.BACK_MAX_INSTANCES || '3' }} \
+            --min-instances ${{ vars.BACK_MIN_INSTANCES || '0' }} \
+            --labels app=backend,env=${{ vars.ENV || 'prod' }} \
+            ${{ vars.BACK_SERVICE_ACCOUNT && format('--service-account {0}', vars.BACK_SERVICE_ACCOUNT) || '' }} \
+            --set-env-vars CORS_ORIGINS=${{ vars.CORS_ORIGINS || 'https://tu-frontend.a.run.app' }},UVICORN_WORKERS=${{ vars.UVICORN_WORKERS || '1' }},PYTHONUNBUFFERED=1
 
       - name: Show service URL
-        run: gcloud run services describe ${{ vars.SERVICE_NAME }} --region ${{ vars.GCP_REGION }} --format='value(status.url)'
+        run: gcloud run services describe ${{ vars.BACKEND_SERVICE_NAME || 'backend' }} --region ${{ vars.GCP_REGION }} --format='value(status.url)'
