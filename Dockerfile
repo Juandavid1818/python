@@ -5,12 +5,14 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# (Opcional) orígenes CORS por defecto para dev
+ENV CORS_ORIGINS="http://localhost:5173"
+
 # Crear directorio de la app
 WORKDIR /usr/src/app
 
-# Instalar dependencias del sistema (si necesitas compilar libs, agrega aquí)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
+# Dependencias del sistema mínimas
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
   && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /usr/src/app/requirements.txt
@@ -20,10 +22,12 @@ RUN pip install --no-cache-dir -r requirements.txt \
 # Copiar el resto del código
 COPY . /usr/src/app
 
-# Crear usuario no root
+# Usuario no root
 RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /usr/src/app
 USER appuser
 
-# Cloud Run establece la variable $PORT. No expongas un puerto fijo.
-# Usamos shell form para que se expanda ${PORT:-8080} (fallback 8080 en local).
+# Healthcheck simple (ajusta si quieres)
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -fsS http://127.0.0.1:${PORT:-8080}/api/health || exit 1
+
+# Cloud Run usa $PORT (no EXPOSE necesario)
 CMD sh -c 'uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}'

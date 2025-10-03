@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Unos estilos extra opcionales */
+body {
+  margin: 0;
+  font-family: sans-serif;
+}
