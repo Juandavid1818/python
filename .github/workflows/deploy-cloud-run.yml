@@ -37,6 +37,27 @@ jobs:
         working-directory: backend
         run: gcloud builds submit --tag ${{ steps.vars.outputs.IMAGE }} --timeout=1200 .
 
+      # 🧠 Calcula CORS_ORIGINS con FRONTEND_URL (+ localhost opcional)
+      - name: Compute CORS list
+        id: cors
+        shell: bash
+        run: |
+          FRONT="${{ vars.FRONTEND_URL }}"
+          if [ -z "$FRONT" ]; then
+            echo "❌ vars.FRONTEND_URL no está definido. Configúralo con la URL pública del frontend (Cloud Run)."
+            exit 1
+          fi
+
+          INCLUDE_LOCAL="${{ vars.INCLUDE_LOCAL_DEV || 'true' }}"
+          if [ "$INCLUDE_LOCAL" = "true" ]; then
+            CORS="$FRONT,http://localhost:5173"
+          else
+            CORS="$FRONT"
+          fi
+
+          echo "CORS=$CORS" >> $GITHUB_OUTPUT
+          echo "✅ CORS_ORIGINS será: $CORS"
+
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ vars.BACKEND_SERVICE_NAME || 'backend' }} \
@@ -53,7 +74,7 @@ jobs:
             --min-instances ${{ vars.BACK_MIN_INSTANCES || '0' }} \
             --labels app=backend,env=${{ vars.ENV || 'prod' }} \
             ${{ vars.BACK_SERVICE_ACCOUNT && format('--service-account {0}', vars.BACK_SERVICE_ACCOUNT) || '' }} \
-            --set-env-vars CORS_ORIGINS=${{ vars.CORS_ORIGINS || 'https://tu-frontend.a.run.app' }},UVICORN_WORKERS=${{ vars.UVICORN_WORKERS || '1' }},PYTHONUNBUFFERED=1
+            --set-env-vars CORS_ORIGINS=${{ steps.cors.outputs.CORS }},UVICORN_WORKERS=${{ vars.UVICORN_WORKERS || '1' }},PYTHONUNBUFFERED=1
 
       - name: Show service URL
         run: gcloud run services describe ${{ vars.BACKEND_SERVICE_NAME || 'backend' }} --region ${{ vars.GCP_REGION }} --format='value(status.url)'
