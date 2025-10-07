@@ -1,0 +1,43 @@
+# docker-compose.yml (copia/pega)
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: miusuario/backend:local
+    environment:
+      - PORT=8080
+      - CORS_ORIGINS=http://localhost:8080
+      - DATABASE_URL=postgresql+psycopg2://appuser:apppass@db:5432/appdb
+    depends_on:
+      - db
+    expose:
+      - "8080"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./appweb/Dockerfile
+    image: miusuario/appweb:local
+    depends_on:
+      - backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+# Declaración OBLIGATORIA del/los volumen(es)
+volumes:
+  postgres_data:

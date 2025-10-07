@@ -4,3 +4,5 @@ jinja2
 python-multipart
 aiofiles
 pydantic[email]==2.9.2
+sqlalchemy
+psycopg2-binary

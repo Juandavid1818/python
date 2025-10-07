@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
+import os
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 app = FastAPI(
     title="Backend API",
@@ -10,20 +13,42 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# ✅ Endpoint raíz: en lugar de 404, responde algo útil o redirige
+# --- Configuración de la base de datos ---
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://appuser:apppass@db:5432/appdb")
+
+# Crea el motor SQLAlchemy
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
+
+# ✅ Endpoint raíz
 @app.get("/", include_in_schema=False)
 def root_redirect():
-    # Si prefieres redirigir al swagger:
     return RedirectResponse(url="/docs")
-    # O si prefieres mostrar un JSON en lugar de redirigir, comenta la línea de arriba y descomenta esto:
-    # return {"service": "backend", "status": "ok", "docs": "/docs", "api": "/api"}
 
-# ✅ Ejemplo de endpoint de API
+
+# ✅ Ejemplo de endpoint básico
 @app.get("/api/hello")
 def hello():
     return {"message": "Hola, soy tu backend funcionando 🚀"}
 
-# ✅ Otro ejemplo de API (útil para probar desde el front)
+
+# ✅ Endpoint de estado general
 @app.get("/api/status")
 def status():
     return {"status": "ok", "detail": "Backend en línea"}
+
+
+# ✅ Nuevo endpoint: prueba de conexión con la base de datos
+@app.get("/api/db-check")
+def db_check():
+    """
+    Intenta conectarse a la base de datos y ejecutar una consulta mínima.
+    Devuelve 'ok' si la conexión funciona, o un error si falla.
+    """
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT 1"))
+            _ = result.scalar()
+        return {"db_status": "ok", "detail": "Conexión exitosa a la base de datos ✅"}
+    except SQLAlchemyError as e:
+        return {"db_status": "error", "detail": str(e)}
