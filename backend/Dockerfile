@@ -1,4 +1,4 @@
-# backend/Dockerfile (actualizado)
+# backend/Dockerfile
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -16,9 +16,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# crear usuario no privilegiado
-RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /usr/src/app
-USER appuser
 
-# CMD: ejecuta migraciones (si APPLY_MIGRATIONS=1) y luego uvicorn
-CMD sh -c 'if [ "${APPLY_MIGRATIONS}" = "1" ]; then python scripts/init_db.py; fi && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}'
+CMD sh -c 'if [ "${APPLY_MIGRATIONS}" = "1" ]; then alembic -c app/alembic.ini upgrade head || { echo "❌ Migraciones fallaron; abortando."; exit 1; }; fi; exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}'

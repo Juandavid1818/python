@@ -4,7 +4,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-from core.config import settings
+from app.core.config import settings
 import os
 
 # ---------------------------------------------------------------
