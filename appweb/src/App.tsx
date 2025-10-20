@@ -6,25 +6,29 @@ export default function App() {
   const [hello, setHello] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [dbStatus, setDbStatus] = useState<string>("");
+  const [user, setUser] = useState<string | null>(null); // ⚡ Listo para login
 
   useEffect(() => {
     // ✅ Mensaje de prueba backend
     fetch(`${base}/hello`)
-      .then(r => r.json())
-      .then(d => setHello(d.message))
+      .then((r) => r.json())
+      .then((d) => setHello(d.message))
       .catch(() => setHello("Error al conectar con backend ❌"));
 
     // ✅ Estado general backend
     fetch(`${base}/status`)
-      .then(r => r.json())
-      .then(d => setStatus(d.status))
+      .then((r) => r.json())
+      .then((d) => setStatus(d.status))
       .catch(() => setStatus("error"));
 
     // ✅ Estado de la base de datos
     fetch(`${base}/db-check`)
-      .then(r => r.json())
-      .then(d => setDbStatus(d.db_status === "ok" ? "Conectada ✅" : "Error ❌"))
+      .then((r) => r.json())
+      .then((d) => setDbStatus(d.db_status === "ok" ? "Conectada ✅" : "Error ❌"))
       .catch(() => setDbStatus("Error al conectar ❌"));
+
+    // ⚡ Ejemplo temporal de usuario (para que TypeScript no marque error)
+    setUser("Demo Usuario");
   }, []);
 
   return (
@@ -41,10 +45,12 @@ export default function App() {
         {dbStatus || "Verificando..."}
       </div>
 
+      <div>👤 <b>Usuario actual:</b> {user || "No logueado"}</div>
+
       <hr className="my-4 border-gray-300" />
 
       <p className="text-sm text-gray-500">
-        Proyecto local con FastAPI, MySQL y Nginx — versión demo 🚀
+        Proyecto local con FastAPI, PostgreSQL y React — versión demo 🚀
       </p>
     </div>
   );

@@ -1,58 +1,61 @@
-# backend/auth/routes.py
-"""
-Rutas de autenticación: register, login, refresh.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from .schemas import Token, UserRead
+from app.models.user import User
+from app.core.database import get_db
+from app.core.security import create_access_token, create_refresh_token
+from fastapi.responses import RedirectResponse
+import httpx
+from app.core.config import settings
 
-from db.config import SessionLocal
-from auth import schemas, services, repository
-from auth.schemas import UserCreate, Token, UserRead
+router = APIRouter(prefix="/auth", tags=["auth"])
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+MICROSOFT_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+MICROSOFT_USER_URL = "https://graph.microsoft.com/v1.0/me"
 
+@router.get("/login/microsoft")
+def microsoft_login(code: str, db: Session = Depends(get_db)):
+    """
+    Endpoint de callback de Microsoft OAuth.
+    Recibe code -> obtiene token -> obtiene user -> valida dominio
+    """
+    # 1️⃣ Obtener token
+    data = {
+        "client_id": settings.MICROSOFT_CLIENT_ID,
+        "client_secret": settings.MICROSOFT_CLIENT_SECRET,
+        "code": code,
+        "grant_type": "authorization_code",
+        "redirect_uri": "http://localhost:5173/auth/microsoft/callback"
+    }
+    resp = httpx.post(MICROSOFT_TOKEN_URL, data=data)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=400, detail="Microsoft login failed")
+    token_data = resp.json()
+    access_token_microsoft = token_data["access_token"]
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    # 2️⃣ Obtener info de usuario
+    headers = {"Authorization": f"Bearer {access_token_microsoft}"}
+    user_resp = httpx.get(MICROSOFT_USER_URL, headers=headers).json()
+    email = user_resp.get("mail") or user_resp.get("userPrincipalName")
 
+    # 3️⃣ Validar dominio
+    if not email.endswith(f"@{settings.MICROSOFT_ALLOWED_DOMAIN}"):
+        raise HTTPException(status_code=403, detail="Dominio no permitido")
 
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, db: Session = Depends(get_db)):
-    if repository.get_user_by_email(db, payload.email):
-        raise HTTPException(status_code=400, detail="Usuario ya existe")
-    user = repository.create_user(db, payload.email, payload.password)
-    return user
-
-
-@router.post("/login", response_model=Token)
-def login(payload: UserCreate, db: Session = Depends(get_db)):
-    user = services.authenticate_user(db, payload.email, payload.password)
+    # 4️⃣ Buscar o crear usuario
+    user = db.query(User).filter(User.email == email).first()
     if not user:
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
-    tokens = services.create_tokens_for_user(user)
-    return {"access_token": tokens["access_token"], "refresh_token": tokens["refresh_token"], "token_type": "bearer"}
+        user = User(username=email.split("@")[0], email=email)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
+    # 5️⃣ Crear tokens JWT
+    access_token = create_access_token(sub=str(user.id))
+    refresh_token = create_refresh_token(sub=str(user.id))
 
-@router.post("/refresh", response_model=Token)
-def refresh(token: dict):
-    # Implementación sencilla: en producción valida token de refresh y rota.
-    # Aquí devolvemos un nuevo access token si el refresh es válido.
-    from core.security import decode_token, create_access_token
+    # Guardar refresh token en la DB
+    user.refresh_tokens.append(refresh_token)
+    db.commit()
 
-    try:
-        payload = decode_token(token.get("refresh_token"))
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="Refresh token inválido")
-
-    if payload.get("type") != "refresh":
-        raise HTTPException(status_code=401, detail="Token no es de tipo refresh")
-
-    user_id = payload.get("sub")
-    new_access = create_access_token(subject=user_id)
-    new_refresh = create_refresh_token(subject=user_id)
-    return {"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer"}
+    return Token(access_token=access_token, refresh_token=refresh_token)

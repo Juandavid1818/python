@@ -1,24 +1,49 @@
-# docker-compose.yml (copia/pega)
+version: "3.8"
+
 services:
+  db:
+    image: postgres:16
+    container_name: python-db-1
+    restart: always
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U appuser -d appdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     image: miusuario/backend:local
-    environment:
-      - PORT=8080
-      - CORS_ORIGINS=http://localhost:8080
-      - DATABASE_URL=postgresql+psycopg2://appuser:apppass@db:5432/appdb
+    container_name: python-backend-1
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
     expose:
       - "8080"
+    command: ["./docker-entrypoint.sh"]
+    volumes:
+      - ./backend/alembic/versions:/app/alembic/versions   # persistir migraciones en host
+      - ./backend/logs:/app/logs                           # opcional
 
   frontend:
     build:
       context: .
       dockerfile: ./appweb/Dockerfile
     image: miusuario/appweb:local
+    container_name: python-frontend-1
     depends_on:
       - backend
     ports:
@@ -26,18 +51,5 @@ services:
     volumes:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
-  db:
-    image: postgres:16
-    restart: always
-    environment:
-      POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: apppass
-      POSTGRES_DB: appdb
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-# Declaración OBLIGATORIA del/los volumen(es)
 volumes:
   postgres_data:

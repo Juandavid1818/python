@@ -1,8 +1,4 @@
-# backend/models/base.py
-"""
-Declarative base para los modelos.
-"""
+from sqlalchemy.ext.declarative import declarative_base
 
-from sqlalchemy.orm import declarative_base
-
+# Objeto Base que todos los modelos heredarán
 Base = declarative_base()

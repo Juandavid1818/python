@@ -11,5 +11,8 @@ python-jose==3.3.0
 alembic==1.12.0
 python-dotenv==1.1.0
 pydantic-settings
+PyJWT>=2.8.0
+httpx>=0.24.0
+
 
 
